@@ -17,7 +17,7 @@ run: $(TARGET)
 $(OUTDIR):
 	mkdir -p $(OUTDIR)
 
-dev: build run
+dev: $(TARGET) run
 
 clean:
 	rm -rf $(OUTDIR)
