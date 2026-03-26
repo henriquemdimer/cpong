@@ -1,6 +1,6 @@
 CC=cc
 CCFLAGS=-Wextra -Wall -Wpedantic -O2
-LDFLAGS=
+LDFLAGS=$(shell pkg-config --libs sdl2)
 
 BIN_DIR=bin
 OBJ_DIR=obj
