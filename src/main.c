@@ -1,7 +1,5 @@
 #include "./defs.h"
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_keyboard.h>
-#include <SDL2/SDL_scancode.h>
 #include <stdio.h>
 
 struct Vec2
@@ -26,6 +24,7 @@ struct Player
 {
     enum PlayerSide side;
     struct Vec2 pos;
+    int score;
     int vel;
     struct PlayerKeybind keybind;
 };
@@ -46,7 +45,7 @@ struct Player player_create(enum PlayerSide side)
         x = WINDOW_WIDTH - PLAYER_WIDTH;
     }
 
-    struct Player p = {side, (struct Vec2){x, WINDOW_HEIGHT / 2 - (PLAYER_HEIGHT / 2)}, 0, keybind};
+    struct Player p = {side, (struct Vec2){x, WINDOW_HEIGHT / 2 - (PLAYER_HEIGHT / 2)}, 0, 0, keybind};
     return p;
 }
 
@@ -80,11 +79,12 @@ struct Ball
 {
     struct Vec2 pos;
     struct Vec2 vel;
+    int cooldown;
 };
 
 struct Ball ball_create(int x, int y)
 {
-    struct Ball ball = {(struct Vec2){x, y}, (struct Vec2){BALL_SPEED, BALL_SPEED}};
+    struct Ball ball = {(struct Vec2){x, y}, (struct Vec2){BALL_SPEED, BALL_SPEED}, BALL_COOLDOWN};
     return ball;
 }
 
@@ -103,6 +103,10 @@ int check_aabb_collision(struct Vec2 pos1, struct Vec2 pos2, int w1, int h1, int
 
 void ball_update(struct Ball *ball, const struct Vec2 collidables[], size_t size)
 {
+    ball->cooldown--;
+    if (ball->cooldown > 0)
+        return;
+
     ball->pos.x += ball->vel.x;
     ball->pos.y += ball->vel.y;
 
@@ -113,7 +117,10 @@ void ball_update(struct Ball *ball, const struct Vec2 collidables[], size_t size
     }
 
     if (ball->pos.x <= 0)
+    {
+        ball->pos.x = 0;
         ball->vel.x *= -1;
+    }
 
     if (ball->pos.x >= WINDOW_WIDTH - BALL_SIZE)
     {
@@ -122,13 +129,25 @@ void ball_update(struct Ball *ball, const struct Vec2 collidables[], size_t size
     }
 
     if (ball->pos.y <= 0)
+    {
+        ball->pos.y = 0;
         ball->vel.y *= -1;
+    }
 
     if (ball->pos.y >= WINDOW_HEIGHT - BALL_SIZE)
     {
         ball->pos.y = WINDOW_HEIGHT - BALL_SIZE;
         ball->vel.y *= -1;
     }
+}
+
+int check_win(struct Ball *ball)
+{
+    if (ball->pos.x <= 0)
+        return 2;
+    if (ball->pos.x >= WINDOW_WIDTH - BALL_SIZE)
+        return 1;
+    return 0;
 }
 
 int main()
@@ -177,8 +196,20 @@ int main()
                 break;
             }
         }
-
+        
         ball_update(&ball, (struct Vec2[2]){player_one.pos, player_two.pos}, 2);
+
+        int winner = check_win(&ball);
+        if (winner != 0)
+        {
+            ball = ball_create(WINDOW_WIDTH / 2 - BALL_SIZE, WINDOW_HEIGHT / 2 - BALL_SIZE);
+
+            if (winner == 1)
+                player_one.score++;
+            else if (winner == 2)
+                player_two.score++;
+        }
+
 
         const Uint8 *keyboard = SDL_GetKeyboardState(NULL);
         player_handle_input(&player_one, keyboard);

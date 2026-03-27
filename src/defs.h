@@ -8,5 +8,6 @@
 #define PLAYER_SPEED 6
 #define BALL_SPEED 6
 #define BALL_SIZE 10
+#define BALL_COOLDOWN 188
 
 #endif
