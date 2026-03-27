@@ -1,34 +1,48 @@
 #include "./defs.h"
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_keyboard.h>
+#include <SDL2/SDL_scancode.h>
 #include <stdio.h>
+
+struct PlayerKeybind
+{
+    SDL_Scancode move_up_key;
+    SDL_Scancode move_down_key;
+};
+
+enum PlayerSide
+{
+    RIGHT,
+    LEFT
+};
 
 struct Player
 {
-    int num;
+    enum PlayerSide side;
     int x;
     int y;
     int vel;
+    struct PlayerKeybind keybind;
 };
 
-enum PlayerNum
-{
-    ONE,
-    TWO
-};
-
-struct Player player_create(enum PlayerNum num)
+struct Player player_create(enum PlayerSide side)
 {
     int x = 0;
-    if (num == ONE)
+    struct PlayerKeybind keybind = {};
+    if (side == LEFT)
     {
+        keybind.move_up_key = SDL_SCANCODE_W;
+        keybind.move_down_key = SDL_SCANCODE_S;
         x = 10;
     }
-    else if (num == TWO)
+    else if (side == RIGHT)
     {
+        keybind.move_up_key = SDL_SCANCODE_UP;
+        keybind.move_down_key = SDL_SCANCODE_DOWN;
         x = WINDOW_WIDTH - 10 - PLAYER_WIDTH;
     }
 
-    struct Player p = {num, x, WINDOW_HEIGHT / 2 - (PLAYER_HEIGHT / 2), 0};
+    struct Player p = {side, x, WINDOW_HEIGHT / 2 - (PLAYER_HEIGHT / 2), 0, keybind};
     return p;
 }
 
@@ -51,6 +65,13 @@ void player_update(struct Player *player)
     {
         player->y = 0;
     }
+}
+
+void player_handle_input(struct Player *player, const Uint8 *state)
+{
+    player->vel = 0;
+    if(state[player->keybind.move_up_key]) player->vel = -PLAYER_SPEED;
+    if(state[player->keybind.move_down_key]) player->vel = PLAYER_SPEED;
 }
 
 struct Ball
@@ -109,8 +130,8 @@ int main()
         return 1;
     }
 
-    struct Player player_one = player_create(ONE);
-    struct Player player_two = player_create(TWO);
+    struct Player player_one = player_create(LEFT);
+    struct Player player_two = player_create(RIGHT);
     struct Ball ball = ball_create(WINDOW_WIDTH / 2 - BALL_SIZE, WINDOW_HEIGHT / 2 - BALL_SIZE);
 
     SDL_Event event;
@@ -130,21 +151,12 @@ int main()
             }
         }
 
-        const Uint8 *keyboard = SDL_GetKeyboardState(NULL);
-
-        player_one.vel = 0;
-        if (keyboard[SDL_SCANCODE_W])
-            player_one.vel = -PLAYER_SPEED;
-        if (keyboard[SDL_SCANCODE_S])
-            player_one.vel = PLAYER_SPEED;
-
-        player_two.vel = 0;
-        if (keyboard[SDL_SCANCODE_UP])
-            player_two.vel = -PLAYER_SPEED;
-        if (keyboard[SDL_SCANCODE_DOWN])
-            player_two.vel = PLAYER_SPEED;
-
         ball_update(&ball);
+
+        const Uint8 *keyboard = SDL_GetKeyboardState(NULL);
+        player_handle_input(&player_one, keyboard);
+        player_handle_input(&player_two, keyboard);
+        
         player_update(&player_one);
         player_update(&player_two);
 
