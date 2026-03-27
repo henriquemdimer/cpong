@@ -101,22 +101,34 @@ int check_aabb_collision(struct Vec2 pos1, struct Vec2 pos2, int w1, int h1, int
     return 0;
 }
 
-void ball_update(struct Ball *ball, const struct Player *player_one, const struct Player *player_two)
+void ball_update(struct Ball *ball, const struct Vec2 collidables[], size_t size)
 {
     ball->pos.x += ball->vel.x;
     ball->pos.y += ball->vel.y;
 
-    struct Player players[2] = {*player_one, *player_two};
-    for (int i = 0; i < 2; i++)
+    for (size_t i = 0; i < size; i++)
     {
-        if (check_aabb_collision(ball->pos, players[i].pos, BALL_SIZE, BALL_SIZE, PLAYER_WIDTH, PLAYER_HEIGHT))
+        if (check_aabb_collision(ball->pos, collidables[i], BALL_SIZE, BALL_SIZE, PLAYER_WIDTH, PLAYER_HEIGHT))
             ball->vel.x *= -1;
     }
 
-    if (ball->pos.x <= 0 || ball->pos.x >= WINDOW_WIDTH - BALL_SIZE)
+    if (ball->pos.x <= 0)
         ball->vel.x *= -1;
-    if (ball->pos.y <= 0 || ball->pos.y >= WINDOW_HEIGHT - BALL_SIZE)
+
+    if (ball->pos.x >= WINDOW_WIDTH - BALL_SIZE)
+    {
+        ball->pos.x = WINDOW_WIDTH - BALL_SIZE;
+        ball->vel.x *= -1;
+    }
+
+    if (ball->pos.y <= 0)
         ball->vel.y *= -1;
+
+    if (ball->pos.y >= WINDOW_HEIGHT - BALL_SIZE)
+    {
+        ball->pos.y = WINDOW_HEIGHT - BALL_SIZE;
+        ball->vel.y *= -1;
+    }
 }
 
 int main()
@@ -166,7 +178,7 @@ int main()
             }
         }
 
-        ball_update(&ball, &player_one, &player_two);
+        ball_update(&ball, (struct Vec2[2]){player_one.pos, player_two.pos}, 2);
 
         const Uint8 *keyboard = SDL_GetKeyboardState(NULL);
         player_handle_input(&player_one, keyboard);
