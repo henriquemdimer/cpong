@@ -3,5 +3,10 @@
 
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
+#define PLAYER_WIDTH 10
+#define PLAYER_HEIGHT 70
+#define PLAYER_SPEED 6
+#define BALL_SPEED 6
+#define BALL_SIZE 10
 
 #endif

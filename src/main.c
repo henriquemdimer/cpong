@@ -1,38 +1,166 @@
-#include <SDL2/SDL_events.h>
-#include <SDL2/SDL_rect.h>
-#include <SDL2/SDL_render.h>
-#include <SDL2/SDL_timer.h>
-#include <SDL2/SDL_video.h>
-#include <SDL2/SDL.h>
 #include "./defs.h"
+#include <SDL2/SDL.h>
+#include <stdio.h>
+
+struct Player
+{
+    int num;
+    int x;
+    int y;
+    int vel;
+};
+
+enum PlayerNum
+{
+    ONE,
+    TWO
+};
+
+struct Player player_create(enum PlayerNum num)
+{
+    int x = 0;
+    if (num == ONE)
+    {
+        x = 10;
+    }
+    else if (num == TWO)
+    {
+        x = WINDOW_WIDTH - 10 - PLAYER_WIDTH;
+    }
+
+    struct Player p = {num, x, WINDOW_HEIGHT / 2 - (PLAYER_HEIGHT / 2), 0};
+    return p;
+}
+
+void player_render(struct Player *player, SDL_Renderer *renderer)
+{
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    SDL_RenderFillRect(renderer, &(SDL_Rect){player->x, player->y, PLAYER_WIDTH, PLAYER_HEIGHT});
+}
+
+void player_update(struct Player *player)
+{
+    player->y += player->vel;
+
+    if (player->y >= WINDOW_HEIGHT - PLAYER_HEIGHT)
+    {
+        player->y = WINDOW_HEIGHT - PLAYER_HEIGHT;
+    }
+
+    if (player->y <= 0)
+    {
+        player->y = 0;
+    }
+}
+
+struct Ball
+{
+    int x;
+    int y;
+    int velx;
+    int vely;
+};
+
+struct Ball ball_create(int x, int y)
+{
+    struct Ball ball = {x, y, BALL_SPEED, BALL_SPEED};
+    return ball;
+}
+
+void ball_render(struct Ball *ball, SDL_Renderer *renderer)
+{
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    SDL_RenderFillRect(renderer, &(SDL_Rect){ball->x, ball->y, BALL_SIZE, BALL_SIZE});
+}
+
+void ball_update(struct Ball *ball)
+{
+    ball->x += ball->velx;
+    ball->y += ball->vely;
+    if (ball->x <= 0 || ball->x >= WINDOW_WIDTH - BALL_SIZE)
+        ball->velx *= -1;
+    if (ball->y <= 0 || ball->y >= WINDOW_HEIGHT - BALL_SIZE)
+        ball->vely *= -1;
+}
 
 int main()
 {
-    SDL_Init(SDL_INIT_VIDEO);
-    SDL_Window* window = SDL_CreateWindow("C Ping Pong", 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 0);
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, 0);
+    if (SDL_Init(SDL_INIT_VIDEO) != 0)
+    {
+        printf("Failed to initialize SDL: %s", SDL_GetError());
+        return 1;
+    }
+
+    SDL_Window *window =
+        SDL_CreateWindow("C Ping Pong", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, 0);
+    if (!window)
+    {
+        printf("Failed to create window: %s", SDL_GetError());
+        SDL_Quit();
+        return 1;
+    }
+
+    SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, 0);
+    if (!renderer)
+    {
+        printf("Failed to create renderer: %s", SDL_GetError());
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
+
+    struct Player player_one = player_create(ONE);
+    struct Player player_two = player_create(TWO);
+    struct Ball ball = ball_create(WINDOW_WIDTH / 2 - BALL_SIZE, WINDOW_HEIGHT / 2 - BALL_SIZE);
 
     SDL_Event event;
     int run = 1;
-    while(run)
+    while (run)
     {
-        while(SDL_PollEvent(&event))
+        while (SDL_PollEvent(&event))
         {
-            if(event.type == SDL_QUIT)
+            switch (event.type)
             {
+            case SDL_QUIT:
                 run = 0;
+                break;
+
+            default:
+                break;
             }
         }
 
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 1);
+        const Uint8 *keyboard = SDL_GetKeyboardState(NULL);
+
+        player_one.vel = 0;
+        if (keyboard[SDL_SCANCODE_W])
+            player_one.vel = -PLAYER_SPEED;
+        if (keyboard[SDL_SCANCODE_S])
+            player_one.vel = PLAYER_SPEED;
+
+        player_two.vel = 0;
+        if (keyboard[SDL_SCANCODE_UP])
+            player_two.vel = -PLAYER_SPEED;
+        if (keyboard[SDL_SCANCODE_DOWN])
+            player_two.vel = PLAYER_SPEED;
+
+        ball_update(&ball);
+        player_update(&player_one);
+        player_update(&player_two);
+
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
 
-        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 1);
-        SDL_RenderFillRect(renderer, &(SDL_Rect){.x = WINDOW_WIDTH / 2 - 50, .y = WINDOW_HEIGHT / 2 - 50, .w = 100, .h = 100});        
-        
+        ball_render(&ball, renderer);
+        player_render(&player_one, renderer);
+        player_render(&player_two, renderer);
+
         SDL_RenderPresent(renderer);
         SDL_Delay(16);
-    }    
+    }
 
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
     return 0;
 }
