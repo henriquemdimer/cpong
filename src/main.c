@@ -4,6 +4,12 @@
 #include <SDL2/SDL_scancode.h>
 #include <stdio.h>
 
+struct Vec2
+{
+    int x;
+    int y;
+};
+
 struct PlayerKeybind
 {
     SDL_Scancode move_up_key;
@@ -19,8 +25,7 @@ enum PlayerSide
 struct Player
 {
     enum PlayerSide side;
-    int x;
-    int y;
+    struct Vec2 pos;
     int vel;
     struct PlayerKeybind keybind;
 };
@@ -33,75 +38,85 @@ struct Player player_create(enum PlayerSide side)
     {
         keybind.move_up_key = SDL_SCANCODE_W;
         keybind.move_down_key = SDL_SCANCODE_S;
-        x = 10;
     }
     else if (side == RIGHT)
     {
         keybind.move_up_key = SDL_SCANCODE_UP;
         keybind.move_down_key = SDL_SCANCODE_DOWN;
-        x = WINDOW_WIDTH - 10 - PLAYER_WIDTH;
+        x = WINDOW_WIDTH - PLAYER_WIDTH;
     }
 
-    struct Player p = {side, x, WINDOW_HEIGHT / 2 - (PLAYER_HEIGHT / 2), 0, keybind};
+    struct Player p = {side, (struct Vec2){x, WINDOW_HEIGHT / 2 - (PLAYER_HEIGHT / 2)}, 0, keybind};
     return p;
 }
 
 void player_render(struct Player *player, SDL_Renderer *renderer)
 {
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-    SDL_RenderFillRect(renderer, &(SDL_Rect){player->x, player->y, PLAYER_WIDTH, PLAYER_HEIGHT});
+    SDL_RenderFillRect(renderer, &(SDL_Rect){player->pos.x, player->pos.y, PLAYER_WIDTH, PLAYER_HEIGHT});
 }
 
 void player_update(struct Player *player)
 {
-    player->y += player->vel;
+    player->pos.y += player->vel;
 
-    if (player->y >= WINDOW_HEIGHT - PLAYER_HEIGHT)
-    {
-        player->y = WINDOW_HEIGHT - PLAYER_HEIGHT;
-    }
+    if (player->pos.y >= WINDOW_HEIGHT - PLAYER_HEIGHT)
+        player->pos.y = WINDOW_HEIGHT - PLAYER_HEIGHT;
 
-    if (player->y <= 0)
-    {
-        player->y = 0;
-    }
+    if (player->pos.y <= 0)
+        player->pos.y = 0;
 }
 
 void player_handle_input(struct Player *player, const Uint8 *state)
 {
     player->vel = 0;
-    if(state[player->keybind.move_up_key]) player->vel = -PLAYER_SPEED;
-    if(state[player->keybind.move_down_key]) player->vel = PLAYER_SPEED;
+    if (state[player->keybind.move_up_key])
+        player->vel = -PLAYER_SPEED;
+    if (state[player->keybind.move_down_key])
+        player->vel = PLAYER_SPEED;
 }
 
 struct Ball
 {
-    int x;
-    int y;
-    int velx;
-    int vely;
+    struct Vec2 pos;
+    struct Vec2 vel;
 };
 
 struct Ball ball_create(int x, int y)
 {
-    struct Ball ball = {x, y, BALL_SPEED, BALL_SPEED};
+    struct Ball ball = {(struct Vec2){x, y}, (struct Vec2){BALL_SPEED, BALL_SPEED}};
     return ball;
 }
 
 void ball_render(struct Ball *ball, SDL_Renderer *renderer)
 {
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-    SDL_RenderFillRect(renderer, &(SDL_Rect){ball->x, ball->y, BALL_SIZE, BALL_SIZE});
+    SDL_RenderFillRect(renderer, &(SDL_Rect){ball->pos.x, ball->pos.y, BALL_SIZE, BALL_SIZE});
 }
 
-void ball_update(struct Ball *ball)
+int check_aabb_collision(struct Vec2 pos1, struct Vec2 pos2, int w1, int h1, int w2, int h2)
 {
-    ball->x += ball->velx;
-    ball->y += ball->vely;
-    if (ball->x <= 0 || ball->x >= WINDOW_WIDTH - BALL_SIZE)
-        ball->velx *= -1;
-    if (ball->y <= 0 || ball->y >= WINDOW_HEIGHT - BALL_SIZE)
-        ball->vely *= -1;
+    if (pos1.x < pos2.x + w2 && pos1.x + w1 > pos2.x && pos1.y < pos2.y + h2 && pos1.y + h1 > pos2.y)
+        return 1;
+    return 0;
+}
+
+void ball_update(struct Ball *ball, const struct Player *player_one, const struct Player *player_two)
+{
+    ball->pos.x += ball->vel.x;
+    ball->pos.y += ball->vel.y;
+
+    struct Player players[2] = {*player_one, *player_two};
+    for (int i = 0; i < 2; i++)
+    {
+        if (check_aabb_collision(ball->pos, players[i].pos, BALL_SIZE, BALL_SIZE, PLAYER_WIDTH, PLAYER_HEIGHT))
+            ball->vel.x *= -1;
+    }
+
+    if (ball->pos.x <= 0 || ball->pos.x >= WINDOW_WIDTH - BALL_SIZE)
+        ball->vel.x *= -1;
+    if (ball->pos.y <= 0 || ball->pos.y >= WINDOW_HEIGHT - BALL_SIZE)
+        ball->vel.y *= -1;
 }
 
 int main()
@@ -151,12 +166,12 @@ int main()
             }
         }
 
-        ball_update(&ball);
+        ball_update(&ball, &player_one, &player_two);
 
         const Uint8 *keyboard = SDL_GetKeyboardState(NULL);
         player_handle_input(&player_one, keyboard);
         player_handle_input(&player_two, keyboard);
-        
+
         player_update(&player_one);
         player_update(&player_two);
 
