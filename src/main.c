@@ -4,6 +4,7 @@
 #include <SDL2/SDL_stdinc.h>
 #include <SDL2/SDL_timer.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 struct Vec2
 {
@@ -173,8 +174,36 @@ int check_win(struct Ball *ball)
     return 0;
 }
 
-int main()
+float metric_cooldown = 1;
+void print_metrics(float dt)
 {
+    metric_cooldown -= dt;
+    if (metric_cooldown > 0)
+        return;
+
+    metric_cooldown = 1;
+    printf("FPS: %.2f\n%.2f ms\nDelta: %f\n", 1 / dt, dt * 1000, dt);
+}
+
+int main(int argc, char *argv[])
+{
+    int show_metrics = 0;
+    int target_fps = -1;
+
+    if (argc > 1)
+    {
+        for (int i = 1; i < argc; i++)
+        {
+            if (strcmp(argv[i], "--show-metrics") == 0)
+                show_metrics = 1;
+
+            if (strcmp(argv[i], "--target-fps") == 0)
+            {
+                target_fps = atoi(argv[i + 1]);
+            }
+        }
+    }
+
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
     {
         printf("Failed to initialize SDL: %s", SDL_GetError());
@@ -214,6 +243,13 @@ int main()
     {
         Uint64 now = SDL_GetPerformanceCounter();
         dt = (float)(now - last_time) / frequency;
+
+        if (target_fps > 0)
+        {
+            if ((1.0 / target_fps) > dt)
+                continue;
+        }
+
         last_time = now;
 
         while (SDL_PollEvent(&event))
@@ -257,6 +293,9 @@ int main()
         player_render(&player_two, renderer);
 
         SDL_RenderPresent(renderer);
+
+        if (show_metrics)
+            print_metrics(dt);
     }
 
     SDL_DestroyRenderer(renderer);
