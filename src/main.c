@@ -1,14 +1,14 @@
 #include "./defs.h"
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_render.h>
+#include <SDL2/SDL_stdinc.h>
 #include <SDL2/SDL_timer.h>
-#include <math.h>
 #include <stdio.h>
 
 struct Vec2
 {
-    int x;
-    int y;
+    float x;
+    float y;
 };
 
 struct PlayerKeybind
@@ -28,7 +28,7 @@ struct Player
     enum PlayerSide side;
     struct Vec2 pos;
     int score;
-    int vel;
+    float vel;
     struct PlayerKeybind keybind;
 };
 
@@ -58,9 +58,9 @@ void player_render(struct Player *player, SDL_Renderer *renderer)
     SDL_RenderFillRect(renderer, &(SDL_Rect){player->pos.x, player->pos.y, PLAYER_WIDTH, PLAYER_HEIGHT});
 }
 
-void player_update(struct Player *player)
+void player_update(struct Player *player, float dt)
 {
-    player->pos.y += player->vel;
+    player->pos.y += player->vel * dt;
 
     if (player->pos.y >= WINDOW_HEIGHT - PLAYER_HEIGHT)
         player->pos.y = WINDOW_HEIGHT - PLAYER_HEIGHT;
@@ -82,7 +82,7 @@ struct Ball
 {
     struct Vec2 pos;
     struct Vec2 vel;
-    int cooldown;
+    float cooldown;
 };
 
 struct Ball ball_create(int x, int y)
@@ -124,14 +124,14 @@ int check_aabb_collision(struct Vec2 pos1, struct Vec2 pos2, int w1, int h1, int
     return 0;
 }
 
-void ball_update(struct Ball *ball, const struct Vec2 collidables[], size_t size)
+void ball_update(struct Ball *ball, float dt, const struct Vec2 collidables[], size_t size)
 {
-    ball->cooldown--;
+    ball->cooldown -= dt;
     if (ball->cooldown > 0)
         return;
 
-    ball->pos.x += ball->vel.x;
-    ball->pos.y += ball->vel.y;
+    ball->pos.x += ball->vel.x * dt;
+    ball->pos.y += ball->vel.y * dt;
 
     for (size_t i = 0; i < size; i++)
     {
@@ -206,8 +206,16 @@ int main()
     SDL_Event event;
     int run = 1;
 
+    Uint64 frequency = SDL_GetPerformanceFrequency();
+    Uint64 last_time = SDL_GetPerformanceCounter();
+    float dt = 0;
+
     while (run)
     {
+        Uint64 now = SDL_GetPerformanceCounter();
+        dt = (float)(now - last_time) / frequency;
+        last_time = now;
+
         while (SDL_PollEvent(&event))
         {
             switch (event.type)
@@ -221,7 +229,7 @@ int main()
             }
         }
 
-        ball_update(&ball, (struct Vec2[2]){player_one.pos, player_two.pos}, 2);
+        ball_update(&ball, dt, (struct Vec2[2]){player_one.pos, player_two.pos}, 2);
 
         int winner = check_win(&ball);
         if (winner != 0)
@@ -238,8 +246,8 @@ int main()
         player_handle_input(&player_one, keyboard);
         player_handle_input(&player_two, keyboard);
 
-        player_update(&player_one);
-        player_update(&player_two);
+        player_update(&player_one, dt);
+        player_update(&player_two, dt);
 
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
@@ -249,7 +257,6 @@ int main()
         player_render(&player_two, renderer);
 
         SDL_RenderPresent(renderer);
-        SDL_Delay(16);
     }
 
     SDL_DestroyRenderer(renderer);
