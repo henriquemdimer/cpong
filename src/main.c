@@ -1,10 +1,13 @@
 #include "./defs.h"
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_render.h>
-#include <SDL2/SDL_stdinc.h>
-#include <SDL2/SDL_timer.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+/*
+    ==================================================
+                        STRUCTS
+    ==================================================
+*/
 
 struct Vec2
 {
@@ -32,6 +35,72 @@ struct Player
     float vel;
     struct PlayerKeybind keybind;
 };
+
+struct Ball
+{
+    struct Vec2 pos;
+    struct Vec2 vel;
+    float cooldown;
+};
+
+/*
+    ==================================================
+                        UTILS
+    ==================================================
+*/
+
+int check_win(struct Ball *ball)
+{
+    if (ball->pos.x <= 0)
+        return 2;
+    if (ball->pos.x >= WINDOW_WIDTH - BALL_SIZE)
+        return 1;
+    return 0;
+}
+
+// TODO: improve circle rendering algorithm
+// this implementation is too inefficient
+void circle_render(SDL_Renderer *renderer, struct Vec2 pos, int radius)
+{
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    for (int x = pos.x - radius; x < pos.x + radius * 2; x++)
+    {
+        for (int y = pos.y - radius; y < pos.y + radius * 2; y++)
+        {
+            int dx = x - pos.x;
+            int dy = y - pos.y;
+            double distance = (dx * dx) + (dy * dy);
+            if (distance <= radius * radius)
+            {
+                SDL_RenderDrawPoint(renderer, x, y);
+            }
+        }
+    }
+}
+
+int check_aabb_collision(struct Vec2 pos1, struct Vec2 pos2, int w1, int h1, int w2, int h2)
+{
+    if (pos1.x < pos2.x + w2 && pos1.x + w1 > pos2.x && pos1.y < pos2.y + h2 && pos1.y + h1 > pos2.y)
+        return 1;
+    return 0;
+}
+
+float metric_cooldown = 1;
+void print_metrics(float dt)
+{
+    metric_cooldown -= dt;
+    if (metric_cooldown > 0)
+        return;
+
+    metric_cooldown = 1;
+    printf("FPS: %.2f\n%.2f ms\nDelta: %f\n", 1 / dt, dt * 1000, dt);
+}
+
+/*
+    ==================================================
+                        PLAYER
+    ==================================================
+*/
 
 struct Player player_create(enum PlayerSide side)
 {
@@ -79,35 +148,16 @@ void player_handle_input(struct Player *player, const Uint8 *state)
         player->vel = PLAYER_SPEED;
 }
 
-struct Ball
-{
-    struct Vec2 pos;
-    struct Vec2 vel;
-    float cooldown;
-};
+/*
+    ==================================================
+                        BALL
+    ==================================================
+*/
 
 struct Ball ball_create(int x, int y)
 {
     struct Ball ball = {(struct Vec2){x, y}, (struct Vec2){BALL_SPEED, BALL_SPEED}, BALL_COOLDOWN};
     return ball;
-}
-
-void circle_render(SDL_Renderer *renderer, struct Vec2 pos, int radius)
-{
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-    for (int x = pos.x - radius; x < pos.x + radius * 2; x++)
-    {
-        for (int y = pos.y - radius; y < pos.y + radius * 2; y++)
-        {
-            int dx = x - pos.x;
-            int dy = y - pos.y;
-            double distance = (dx * dx) + (dy * dy);
-            if (distance <= radius * radius)
-            {
-                SDL_RenderDrawPoint(renderer, x, y);
-            }
-        }
-    }
 }
 
 void ball_render(struct Ball *ball, SDL_Renderer *renderer)
@@ -116,13 +166,6 @@ void ball_render(struct Ball *ball, SDL_Renderer *renderer)
     // SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
     // SDL_RenderFillRect(renderer, &(SDL_Rect){ball->pos.x, ball->pos.y, BALL_SIZE, BALL_SIZE});
     circle_render(renderer, (struct Vec2){ball->pos.x + BALL_SIZE / 2, ball->pos.y + BALL_SIZE / 2}, BALL_SIZE / 2);
-}
-
-int check_aabb_collision(struct Vec2 pos1, struct Vec2 pos2, int w1, int h1, int w2, int h2)
-{
-    if (pos1.x < pos2.x + w2 && pos1.x + w1 > pos2.x && pos1.y < pos2.y + h2 && pos1.y + h1 > pos2.y)
-        return 1;
-    return 0;
 }
 
 void ball_update(struct Ball *ball, float dt, const struct Vec2 collidables[], size_t size)
@@ -157,25 +200,11 @@ void ball_update(struct Ball *ball, float dt, const struct Vec2 collidables[], s
     }
 }
 
-int check_win(struct Ball *ball)
-{
-    if (ball->pos.x <= 0)
-        return 2;
-    if (ball->pos.x >= WINDOW_WIDTH - BALL_SIZE)
-        return 1;
-    return 0;
-}
-
-float metric_cooldown = 1;
-void print_metrics(float dt)
-{
-    metric_cooldown -= dt;
-    if (metric_cooldown > 0)
-        return;
-
-    metric_cooldown = 1;
-    printf("FPS: %.2f\n%.2f ms\nDelta: %f\n", 1 / dt, dt * 1000, dt);
-}
+/*
+    ==================================================
+                        MAIN
+    ==================================================
+*/
 
 int main(int argc, char *argv[])
 {
@@ -191,7 +220,7 @@ int main(int argc, char *argv[])
 
             if (strcmp(argv[i], "--target-fps") == 0)
             {
-                if(argc <= i+1)
+                if (argc <= i + 1)
                 {
                     printf("Usage: %s [--target-fps NUM|--show-metrics]\n", argv[0]);
                     return 1;
@@ -263,17 +292,20 @@ int main(int argc, char *argv[])
             }
         }
 
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+
         ball_update(&ball, dt, (struct Vec2[2]){player_one.pos, player_two.pos}, 2);
 
         int winner = check_win(&ball);
         if (winner != 0)
         {
-            ball = ball_create(WINDOW_WIDTH / 2 - BALL_SIZE, WINDOW_HEIGHT / 2 - BALL_SIZE);
-
             if (winner == 1)
                 player_one.score++;
             else if (winner == 2)
                 player_two.score++;
+
+            ball = ball_create(WINDOW_WIDTH / 2 - BALL_SIZE, WINDOW_HEIGHT / 2 - BALL_SIZE);
         }
 
         const Uint8 *keyboard = SDL_GetKeyboardState(NULL);
@@ -282,9 +314,6 @@ int main(int argc, char *argv[])
 
         player_update(&player_one, dt);
         player_update(&player_two, dt);
-
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-        SDL_RenderClear(renderer);
 
         ball_render(&ball, renderer);
         player_render(&player_one, renderer);
