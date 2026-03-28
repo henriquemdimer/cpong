@@ -131,6 +131,10 @@ void ball_update(struct Ball *ball, float dt, const struct Vec2 collidables[], s
     if (ball->cooldown > 0)
         return;
 
+    // collision is broken at high delta time, so i just limited it
+    if (dt > 0.032)
+        dt = 0.032;
+
     ball->pos.x += ball->vel.x * dt;
     ball->pos.y += ball->vel.y * dt;
 
