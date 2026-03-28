@@ -1,5 +1,8 @@
 #include "./defs.h"
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_render.h>
+#include <SDL2/SDL_timer.h>
+#include <math.h>
 #include <stdio.h>
 
 struct Vec2
@@ -88,10 +91,30 @@ struct Ball ball_create(int x, int y)
     return ball;
 }
 
-void ball_render(struct Ball *ball, SDL_Renderer *renderer)
+void circle_render(SDL_Renderer *renderer, struct Vec2 pos, int radius)
 {
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-    SDL_RenderFillRect(renderer, &(SDL_Rect){ball->pos.x, ball->pos.y, BALL_SIZE, BALL_SIZE});
+    for (int x = pos.x - radius; x < pos.x + radius * 2; x++)
+    {
+        for (int y = pos.y - radius; y < pos.y + radius * 2; y++)
+        {
+            int dx = x - pos.x;
+            int dy = y - pos.y;
+            double distance = (dx * dx) + (dy * dy);
+            if (distance <= radius * radius)
+            {
+                SDL_RenderDrawPoint(renderer, x, y);
+            }
+        }
+    }
+}
+
+void ball_render(struct Ball *ball, SDL_Renderer *renderer)
+{
+    // =========== Render HITBOX ==============
+    // SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
+    // SDL_RenderFillRect(renderer, &(SDL_Rect){ball->pos.x, ball->pos.y, BALL_SIZE, BALL_SIZE});
+    circle_render(renderer, (struct Vec2){ball->pos.x + BALL_SIZE / 2, ball->pos.y + BALL_SIZE / 2}, BALL_SIZE / 2);
 }
 
 int check_aabb_collision(struct Vec2 pos1, struct Vec2 pos2, int w1, int h1, int w2, int h2)
@@ -178,10 +201,11 @@ int main()
 
     struct Player player_one = player_create(LEFT);
     struct Player player_two = player_create(RIGHT);
-    struct Ball ball = ball_create(WINDOW_WIDTH / 2 - BALL_SIZE, WINDOW_HEIGHT / 2 - BALL_SIZE);
+    struct Ball ball = ball_create(WINDOW_WIDTH / 2 - BALL_SIZE / 2, WINDOW_HEIGHT / 2 - BALL_SIZE / 2);
 
     SDL_Event event;
     int run = 1;
+
     while (run)
     {
         while (SDL_PollEvent(&event))
@@ -196,7 +220,7 @@ int main()
                 break;
             }
         }
-        
+
         ball_update(&ball, (struct Vec2[2]){player_one.pos, player_two.pos}, 2);
 
         int winner = check_win(&ball);
@@ -209,7 +233,6 @@ int main()
             else if (winner == 2)
                 player_two.score++;
         }
-
 
         const Uint8 *keyboard = SDL_GetKeyboardState(NULL);
         player_handle_input(&player_one, keyboard);
