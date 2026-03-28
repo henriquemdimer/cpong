@@ -144,18 +144,6 @@ void ball_update(struct Ball *ball, float dt, const struct Vec2 collidables[], s
             ball->vel.x *= -1;
     }
 
-    if (ball->pos.x <= 0)
-    {
-        ball->pos.x = 0;
-        ball->vel.x *= -1;
-    }
-
-    if (ball->pos.x >= WINDOW_WIDTH - BALL_SIZE)
-    {
-        ball->pos.x = WINDOW_WIDTH - BALL_SIZE;
-        ball->vel.x *= -1;
-    }
-
     if (ball->pos.y <= 0)
     {
         ball->pos.y = 0;
@@ -255,6 +243,7 @@ int main(int argc, char *argv[])
 
         if (target_fps > 0)
         {
+            // TODO: stop loop and wait until the target delta time is reached
             if ((1.0 / target_fps) > dt)
                 continue;
         }
