@@ -203,6 +203,11 @@ int main(int argc, char *argv[])
 
             if (strcmp(argv[i], "--target-fps") == 0)
             {
+                if(argc <= i+1)
+                {
+                    printf("Usage: %s [--target-fps NUM|--show-metrics]\n", argv[0]);
+                    return 1;
+                }
                 target_fps = atoi(argv[i + 1]);
             }
         }
