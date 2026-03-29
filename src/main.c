@@ -1,7 +1,10 @@
 #include "./defs.h"
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_events.h>
+#include <SDL2/SDL_render.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 /*
     ==================================================
@@ -41,6 +44,23 @@ struct Ball
     struct Vec2 pos;
     struct Vec2 vel;
     float cooldown;
+};
+
+struct Particle
+{
+    struct Vec2 pos;
+    struct Vec2 vel;
+    float lifetime;
+    float size;
+    int color;
+    int active;
+};
+
+// TODO: add a active_particles field to improve loop performance
+struct ParticleManager
+{
+    struct Particle particles[MAX_PARTICLES];
+    size_t size;
 };
 
 /*
@@ -94,6 +114,11 @@ void print_metrics(float dt)
 
     metric_cooldown = 1;
     printf("FPS: %.2f\n%.2f ms\nDelta: %f\n", 1 / dt, dt * 1000, dt);
+}
+
+int irandom_range(int min, int max)
+{
+    return min + rand() % (max - min + 1);
 }
 
 /*
@@ -202,12 +227,87 @@ void ball_update(struct Ball *ball, float dt, const struct Vec2 collidables[], s
 
 /*
     ==================================================
+                        PARTICLE
+    ==================================================
+*/
+
+struct Particle particle_create(struct Vec2 pos, struct Vec2 vel, int lifetime, int size, int color)
+{
+    struct Particle particle = {pos, vel, lifetime, size, color, 0};
+    return particle;
+}
+
+struct ParticleManager particlemgr_create()
+{
+    struct ParticleManager pmgr = {0};
+    for (int i = 0; i < MAX_PARTICLES; i++)
+    {
+        pmgr.particles[i] = particle_create((struct Vec2){0, 0}, (struct Vec2){0, 0}, 0, 0, 0);
+    }
+
+    return pmgr;
+}
+
+void particlemgr_render(struct ParticleManager *mgr, SDL_Renderer *renderer)
+{
+    for (int i = 0; i < MAX_PARTICLES; i++)
+    {
+        struct Particle p = mgr->particles[i];
+        if (p.active)
+        {
+            // circle_render(renderer, p.pos, p.size / 2);
+            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+            SDL_RenderFillRect(renderer, &(SDL_Rect){p.pos.x, p.pos.y, 10, 10});
+        }
+    }
+}
+
+// TODO: create a batch spawn function
+void particlemgr_spawn(struct ParticleManager *mgr, struct Vec2 pos, struct Vec2 vel, float size, int lifetime)
+{
+    for (int i = 0; i < MAX_PARTICLES; i++)
+    {
+        struct Particle *p = &mgr->particles[i];
+        if (!p->active)
+        {
+            p->pos = pos;
+            p->vel = vel;
+            p->size = size;
+            p->lifetime = lifetime;
+            p->active = 1;
+            break;
+        }
+    }
+}
+
+void particlemgr_update(struct ParticleManager *mgr, float dt)
+{
+    for (int i = 0; i < MAX_PARTICLES; i++)
+    {
+        struct Particle *p = &mgr->particles[i];
+        if (p->active)
+        {
+            if (p->lifetime <= 0)
+            {
+                p->active = 0;
+            }
+
+            p->pos.x += p->vel.x * dt;
+            p->pos.y += p->vel.y * dt;
+            p->lifetime -= dt;
+        }
+    }
+}
+
+/*
+    ==================================================
                         MAIN
     ==================================================
 */
 
 int main(int argc, char *argv[])
 {
+    srand(time(NULL));
     int show_metrics = 0;
     int target_fps = -1;
 
@@ -257,6 +357,7 @@ int main(int argc, char *argv[])
     struct Player player_one = player_create(LEFT);
     struct Player player_two = player_create(RIGHT);
     struct Ball ball = ball_create(WINDOW_WIDTH / 2 - BALL_SIZE / 2, WINDOW_HEIGHT / 2 - BALL_SIZE / 2);
+    struct ParticleManager pmgr = particlemgr_create();
 
     SDL_Event event;
     int run = 1;
@@ -292,11 +393,6 @@ int main(int argc, char *argv[])
             }
         }
 
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-        SDL_RenderClear(renderer);
-
-        ball_update(&ball, dt, (struct Vec2[2]){player_one.pos, player_two.pos}, 2);
-
         int winner = check_win(&ball);
         if (winner != 0)
         {
@@ -308,13 +404,22 @@ int main(int argc, char *argv[])
             ball = ball_create(WINDOW_WIDTH / 2 - BALL_SIZE, WINDOW_HEIGHT / 2 - BALL_SIZE);
         }
 
+        // INPUT
         const Uint8 *keyboard = SDL_GetKeyboardState(NULL);
         player_handle_input(&player_one, keyboard);
         player_handle_input(&player_two, keyboard);
 
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+
+        // UPDATE
+        particlemgr_update(&pmgr, dt);
+        ball_update(&ball, dt, (struct Vec2[2]){player_one.pos, player_two.pos}, 2);
         player_update(&player_one, dt);
         player_update(&player_two, dt);
 
+        // RENDER
+        particlemgr_render(&pmgr, renderer);
         ball_render(&ball, renderer);
         player_render(&player_one, renderer);
         player_render(&player_two, renderer);
