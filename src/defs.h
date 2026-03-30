@@ -8,7 +8,7 @@
 #define PLAYER_SPEED 300.0
 #define BALL_SPEED 300.0
 #define BALL_SIZE 20.0
-#define BALL_COOLDOWN 3.0
-#define MAX_PARTICLES 100
+#define BALL_COOLDOWN 1.0
+#define MAX_PARTICLES 1000
 
 #endif

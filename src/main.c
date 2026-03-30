@@ -46,13 +46,21 @@ struct Ball
     float cooldown;
 };
 
+enum ParticleType
+{
+    UNDEFINED,
+    IMPACT
+};
+
 struct Particle
 {
     struct Vec2 pos;
     struct Vec2 vel;
+    enum ParticleType type;
     float lifetime;
     float size;
     int color;
+    float alpha;
     int active;
 };
 
@@ -80,9 +88,9 @@ int check_win(struct Ball *ball)
 
 // TODO: improve circle rendering algorithm
 // this implementation is too inefficient
-void circle_render(SDL_Renderer *renderer, struct Vec2 pos, int radius)
+void circle_render(SDL_Renderer *renderer, struct Vec2 pos, int radius, int alpha)
 {
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, alpha);
     for (int x = pos.x - radius; x < pos.x + radius * 2; x++)
     {
         for (int y = pos.y - radius; y < pos.y + radius * 2; y++)
@@ -190,7 +198,8 @@ void ball_render(struct Ball *ball, SDL_Renderer *renderer)
     // =========== Render HITBOX ==============
     // SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
     // SDL_RenderFillRect(renderer, &(SDL_Rect){ball->pos.x, ball->pos.y, BALL_SIZE, BALL_SIZE});
-    circle_render(renderer, (struct Vec2){ball->pos.x + BALL_SIZE / 2, ball->pos.y + BALL_SIZE / 2}, BALL_SIZE / 2);
+    circle_render(renderer, (struct Vec2){ball->pos.x + BALL_SIZE / 2, ball->pos.y + BALL_SIZE / 2}, BALL_SIZE / 2,
+                  255);
 }
 
 void ball_update(struct Ball *ball, float dt, const struct Vec2 collidables[], size_t size)
@@ -231,9 +240,10 @@ void ball_update(struct Ball *ball, float dt, const struct Vec2 collidables[], s
     ==================================================
 */
 
-struct Particle particle_create(struct Vec2 pos, struct Vec2 vel, int lifetime, int size, int color)
+struct Particle particle_create(struct Vec2 pos, struct Vec2 vel, enum ParticleType type, int lifetime, int size,
+                                int color, int alpha)
 {
-    struct Particle particle = {pos, vel, lifetime, size, color, 0};
+    struct Particle particle = {pos, vel, type, lifetime, size, color, 0, alpha};
     return particle;
 }
 
@@ -242,7 +252,7 @@ struct ParticleManager particlemgr_create()
     struct ParticleManager pmgr = {0};
     for (int i = 0; i < MAX_PARTICLES; i++)
     {
-        pmgr.particles[i] = particle_create((struct Vec2){0, 0}, (struct Vec2){0, 0}, 0, 0, 0);
+        pmgr.particles[i] = particle_create((struct Vec2){0, 0}, (struct Vec2){0, 0}, UNDEFINED, 0, 0, 0, 255);
     }
 
     return pmgr;
@@ -255,15 +265,26 @@ void particlemgr_render(struct ParticleManager *mgr, SDL_Renderer *renderer)
         struct Particle p = mgr->particles[i];
         if (p.active)
         {
-            // circle_render(renderer, p.pos, p.size / 2);
-            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-            SDL_RenderFillRect(renderer, &(SDL_Rect){p.pos.x, p.pos.y, 10, 10});
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            switch (p.type)
+            {
+            case IMPACT:
+                circle_render(renderer, p.pos, p.size / 2, p.alpha);
+                break;
+
+            case UNDEFINED:
+            default:
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, p.alpha);
+                SDL_RenderFillRect(renderer, &(SDL_Rect){p.pos.x, p.pos.y, 10, 10});
+                break;
+            }
         }
     }
 }
 
 // TODO: create a batch spawn function
-void particlemgr_spawn(struct ParticleManager *mgr, struct Vec2 pos, struct Vec2 vel, float size, int lifetime)
+void particlemgr_spawn(struct ParticleManager *mgr, struct Vec2 pos, struct Vec2 vel, enum ParticleType type,
+                       float size, int lifetime, int alpha)
 {
     for (int i = 0; i < MAX_PARTICLES; i++)
     {
@@ -275,6 +296,8 @@ void particlemgr_spawn(struct ParticleManager *mgr, struct Vec2 pos, struct Vec2
             p->size = size;
             p->lifetime = lifetime;
             p->active = 1;
+            p->type = type;
+            p->alpha = alpha;
             break;
         }
     }
@@ -295,6 +318,20 @@ void particlemgr_update(struct ParticleManager *mgr, float dt)
             p->pos.x += p->vel.x * dt;
             p->pos.y += p->vel.y * dt;
             p->lifetime -= dt;
+
+            switch (p->type)
+            {
+            case IMPACT:
+                p->alpha -= 200 * dt;
+                if (p->alpha < 0)
+                    p->alpha = 0;
+                p->size -= 1 * dt;
+                break;
+
+            case UNDEFINED:
+            default:
+                break;
+            }
         }
     }
 }
@@ -400,6 +437,23 @@ int main(int argc, char *argv[])
                 player_one.score++;
             else if (winner == 2)
                 player_two.score++;
+
+            for (int i = 0; i < 50; i++)
+            {
+                struct Vec2 pos = {ball.pos.x, ball.pos.y};
+                struct Vec2 vel = {0, irandom_range(-100, 100)};
+                if (winner == 2)
+                {
+                    vel.x = irandom_range(10, 100);
+                }
+                else if (winner == 1)
+                {
+                    pos.x += BALL_SIZE;
+                    vel.x = irandom_range(-100, -10);
+                }
+
+                particlemgr_spawn(&pmgr, pos, vel, IMPACT, 10, 2, 255);
+            }
 
             ball = ball_create(WINDOW_WIDTH / 2 - BALL_SIZE, WINDOW_HEIGHT / 2 - BALL_SIZE);
         }
